@@ -1,0 +1,98 @@
+# Brownian Bridge Diffusion Model Template(Pixel Space)
+runner: "BBDMRunner"
+training:
+  n_epochs: 100
+  save_interval: 2
+  sample_interval: 2
+  validation_interval: 2
+
+testing:
+  clip_denoised: True
+  sample_num: 5
+
+data:
+  dataset_name: 'CelebAMaskHQ'
+  dataset_type: 'custom_aligned'
+  dataset_config:
+    dataset_path: '/media/x/disk/BBDM/datasets/CelebAMaskHQ'
+    image_size: 256
+    channels: 3
+    to_normal: True
+    flip: False
+  train:
+    batch_size: 8
+    shuffle: True
+  val:
+    batch_size: 8
+    shuffle: True
+  test:
+    batch_size: 8
+    # shuffle: False
+
+model:
+  model_name: "BrownianBridge" # part of result path
+  model_type: "BBDM" # specify a module
+  # model_load_path:  # model checkpoint path
+  # optim_sche_load_path:  # optimizer scheduler checkpoint path
+
+  EMA:
+    use_ema: True
+    ema_decay: 0.995
+    update_ema_interval: 8 # step
+    start_ema_step: 30000
+
+  CondStageParams:
+    n_stages: 2
+    in_channels: 3
+    out_channels: 3
+
+  BB:
+    optimizer:
+      weight_decay: 0.000
+      optimizer: 'Adam'
+      lr: 1.e-4
+      beta1: 0.9
+
+    lr_scheduler:
+      factor: 0.5
+      patience: 3000
+      threshold: 0.0001
+      cooldown: 3000
+      min_lr: 5.e-7
+
+    params:
+      mt_type: 'linear' # options {'linear', 'sin'}
+      objective: 'grad' # options {'grad', 'noise', 'ysubx'}
+      loss_type: 'l1' # options {'l1', 'l2'}
+
+      skip_sample: True
+      sample_type: 'linear' # options {"linear", "sin"}
+      sample_step: 200
+
+      num_timesteps: 1000 # timesteps
+      eta: 1.0 # DDIM reverse process eta
+      max_var: 1.0 # maximum variance
+
+      UNetParams:
+        image_size: 64
+        in_channels: 6
+        model_channels: 128
+        out_channels: 3
+        num_res_blocks: 2
+        attention_resolutions: !!python/tuple
+          - 32
+          - 16
+          - 8
+        channel_mult: !!python/tuple
+          - 1
+          - 4
+          - 8
+        conv_resample: True
+        dims: 2
+        num_heads: 8
+        num_head_channels: 64
+        use_scale_shift_norm: True
+        resblock_updown: True
+        use_spatial_transformer: False
+        context_dim:
+        condition_key: "SpatialRescaler" # options {"SpatialRescaler", "first_stage", "nocond"}
