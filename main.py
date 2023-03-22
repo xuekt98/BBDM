@@ -21,10 +21,16 @@ def parse_args_and_config():
     parser.add_argument('-t', '--train', action='store_true', default=False, help='train the model')
     parser.add_argument('--sample_to_eval', action='store_true', default=False, help='sample for evaluation')
     parser.add_argument('--sample_at_start', action='store_true', default=False, help='sample at start(for debug)')
-    parser.add_argument('--save_top', type=int, default=0, help="save top loss checkpoint")
+    parser.add_argument('--save_top', action='store_true', default=False, help="save top loss checkpoint")
 
     parser.add_argument('--gpu_ids', type=str, default='0', help='gpu ids, 0,1,2,3 cpu=-1')
     parser.add_argument('--port', type=str, default='12355', help='DDP master port')
+
+    parser.add_argument('--resume_model', type=str, default=None, help='model checkpoint')
+    parser.add_argument('--resume_optim', type=str, default=None, help='optimizer checkpoint')
+
+    parser.add_argument('--max_epoch', type=int, default=None, help='optimizer checkpoint')
+    parser.add_argument('--max_steps', type=int, default=None, help='optimizer checkpoint')
 
     args = parser.parse_args()
 
@@ -33,6 +39,16 @@ def parse_args_and_config():
 
     namespace_config = dict2namespace(dict_config)
     namespace_config.args = args
+
+    if args.resume_model is not None:
+        namespace_config.model.model_load_path = args.resume_model
+    if args.resume_optim is not None:
+        namespace_config.model.optim_sche_load_path = args.resume_optim
+    if args.max_epoch is not None:
+        namespace_config.training.n_epochs = args.max_epoch
+    if args.max_steps is not None:
+        namespace_config.training.n_steps = args.max_steps
+
     dict_config = namespace2dict(namespace_config)
 
     return namespace_config, dict_config

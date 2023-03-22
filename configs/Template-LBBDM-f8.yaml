@@ -11,10 +11,10 @@ testing:
   sample_num: 5
 
 data:
-  dataset_name: 'CelebAMaskHQ'
+  dataset_name: 'dataset_name'
   dataset_type: 'custom_aligned'
   dataset_config:
-    dataset_path: '/media/x/disk/BBDM/datasets/CelebAMaskHQ'
+    dataset_path: 'dataset_path'
     image_size: 256
     channels: 3
     to_normal: True
@@ -30,8 +30,11 @@ data:
     # shuffle: False
 
 model:
-  model_name: "BrownianBridge" # part of result path
-  model_type: "BBDM" # specify a module
+  model_name: "LBBDM-f8" # part of result path
+  model_type: "LBBDM" # specify a module
+  latent_before_quant_conv: False
+  normalize_latent: False
+  only_load_latent_mean_std: False
   # model_load_path:  # model checkpoint path
   # optim_sche_load_path:  # optimizer scheduler checkpoint path
 
@@ -42,18 +45,18 @@ model:
     start_ema_step: 30000
 
   CondStageParams:
-    n_stages: 2
+    n_stages: 3
     in_channels: 3
-    out_channels: 3
+    out_channels: 4
 
   VQGAN:
     params:
-      ckpt_path: 'results/VQGAN/CelebAMaskHQ-f4.ckpt'
-      embed_dim: 3
-      n_embed: 8192
+      ckpt_path: 'results/VQGAN-new/CelebAMaskHQ-f8.ckpt'
+      embed_dim: 4
+      n_embed: 16384
       ddconfig:
         double_z: false
-        z_channels: 3
+        z_channels: 4
         resolution: 256
         in_channels: 3
         out_ch: 3
@@ -61,9 +64,11 @@ model:
         ch_mult: !!python/tuple
           - 1
           - 2
+          - 2
           - 4
         num_res_blocks: 2
-        attn_resolutions: [ ]
+        attn_resolutions:
+          - 32
         dropout: 0.0
 
       lossconfig:
@@ -97,10 +102,10 @@ model:
       max_var: 1.0 # maximum variance
 
       UNetParams:
-        image_size: 64
-        in_channels: 6
+        image_size: 32
+        in_channels: 8
         model_channels: 128
-        out_channels: 3
+        out_channels: 4
         num_res_blocks: 2
         attention_resolutions: !!python/tuple
           - 32
@@ -114,8 +119,8 @@ model:
         dims: 2
         num_heads: 8
         num_head_channels: 64
-        use_scale_shift_norm: False
-        resblock_updown: False
+        use_scale_shift_norm: True
+        resblock_updown: True
         use_spatial_transformer: False
         context_dim:
         condition_key: "SpatialRescaler" # options {"SpatialRescaler", "first_stage", "nocond"}

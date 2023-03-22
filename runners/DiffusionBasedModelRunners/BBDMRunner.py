@@ -28,18 +28,30 @@ class BBDMRunner(DiffusionBaseRunner):
         bbdmnet.apply(weights_init)
         return bbdmnet
 
+    def load_model_from_checkpoint(self):
+        states = None
+        if self.config.model.only_load_latent_mean_std:
+            if self.config.model.__contains__('model_load_path') and self.config.model.model_load_path is not None:
+                states = torch.load(self.config.model.model_load_path, map_location='cpu')
+        else:
+            states = super().load_model_from_checkpoint()
+
+        if self.config.model.normalize_latent:
+            if states is not None:
+                self.net.ori_latent_mean = states['ori_latent_mean'].to(self.config.training.device[0])
+                self.net.ori_latent_std = states['ori_latent_std'].to(self.config.training.device[0])
+                self.net.cond_latent_mean = states['cond_latent_mean'].to(self.config.training.device[0])
+                self.net.cond_latent_std = states['cond_latent_std'].to(self.config.training.device[0])
+            else:
+                if self.config.args.train:
+                    self.get_latent_mean_std()
+
     def print_model_summary(self, net):
         def get_parameter_number(model):
             total_num = sum(p.numel() for p in model.parameters())
             trainable_num = sum(p.numel() for p in model.parameters() if p.requires_grad)
             return total_num, trainable_num
 
-        # total_num, trainable_num = get_parameter_number(net.vqgan)
-        # print("Total Number of VQGAN parameter: %.2fM" % (total_num / 1e6))
-        # print("Trainable Number of VQGAN parameter: %.2fM" % (trainable_num / 1e6))
-        # total_num, trainable_num = get_parameter_number(net.denoise_fn)
-        # print("Total Number of BrownianBridge parameter: %.2fM" % (total_num / 1e6))
-        # print("Trainable Number of BrownianBridge parameter: %.2fM" % (trainable_num / 1e6))
         total_num, trainable_num = get_parameter_number(net)
         print("Total Number of parameter: %.2fM" % (total_num / 1e6))
         print("Trainable Number of parameter: %.2fM" % (trainable_num / 1e6))
@@ -53,6 +65,101 @@ class BBDMRunner(DiffusionBaseRunner):
                                                                **vars(config.model.BB.lr_scheduler)
 )
         return [optimizer], [scheduler]
+
+    @torch.no_grad()
+    def get_checkpoint_states(self, stage='epoch_end'):
+        model_states, optimizer_scheduler_states = super().get_checkpoint_states()
+        if self.config.model.normalize_latent:
+            if self.config.training.use_DDP:
+                model_states['ori_latent_mean'] = self.net.module.ori_latent_mean
+                model_states['ori_latent_std'] = self.net.module.ori_latent_std
+                model_states['cond_latent_mean'] = self.net.module.cond_latent_mean
+                model_states['cond_latent_std'] = self.net.module.cond_latent_std
+            else:
+                model_states['ori_latent_mean'] = self.net.ori_latent_mean
+                model_states['ori_latent_std'] = self.net.ori_latent_std
+                model_states['cond_latent_mean'] = self.net.cond_latent_mean
+                model_states['cond_latent_std'] = self.net.cond_latent_std
+        return model_states, optimizer_scheduler_states
+
+    def get_latent_mean_std(self):
+        train_dataset, val_dataset, test_dataset = get_dataset(self.config.data)
+        train_loader = DataLoader(train_dataset,
+                                  batch_size=self.config.data.train.batch_size,
+                                  shuffle=True,
+                                  num_workers=8,
+                                  drop_last=True)
+
+        total_ori_mean = None
+        total_ori_var = None
+        total_cond_mean = None
+        total_cond_var = None
+        max_batch_num = 30000 // self.config.data.train.batch_size
+
+        def calc_mean(batch, total_ori_mean=None, total_cond_mean=None):
+            (x, x_name), (x_cond, x_cond_name) = batch
+            x = x.to(self.config.training.device[0])
+            x_cond = x_cond.to(self.config.training.device[0])
+
+            x_latent = self.net.encode(x, cond=False, normalize=False)
+            x_cond_latent = self.net.encode(x_cond, cond=True, normalize=False)
+            x_mean = x_latent.mean(axis=[0, 2, 3], keepdim=True)
+            total_ori_mean = x_mean if total_ori_mean is None else x_mean + total_ori_mean
+
+            x_cond_mean = x_cond_latent.mean(axis=[0, 2, 3], keepdim=True)
+            total_cond_mean = x_cond_mean if total_cond_mean is None else x_cond_mean + total_cond_mean
+            return total_ori_mean, total_cond_mean
+
+        def calc_var(batch, ori_latent_mean=None, cond_latent_mean=None, total_ori_var=None, total_cond_var=None):
+            (x, x_name), (x_cond, x_cond_name) = batch
+            x = x.to(self.config.training.device[0])
+            x_cond = x_cond.to(self.config.training.device[0])
+
+            x_latent = self.net.encode(x, cond=False, normalize=False)
+            x_cond_latent = self.net.encode(x_cond, cond=True, normalize=False)
+            x_var = ((x_latent - ori_latent_mean) ** 2).mean(axis=[0, 2, 3], keepdim=True)
+            total_ori_var = x_var if total_ori_var is None else x_var + total_ori_var
+
+            x_cond_var = ((x_cond_latent - cond_latent_mean) ** 2).mean(axis=[0, 2, 3], keepdim=True)
+            total_cond_var = x_cond_var if total_cond_var is None else x_cond_var + total_cond_var
+            return total_ori_var, total_cond_var
+
+        print(f"start calculating latent mean")
+        batch_count = 0
+        for train_batch in tqdm(train_loader, total=len(train_loader), smoothing=0.01):
+            if batch_count >= max_batch_num:
+                break
+            batch_count += 1
+            total_ori_mean, total_cond_mean = calc_mean(train_batch, total_ori_mean, total_cond_mean)
+
+        ori_latent_mean = total_ori_mean / batch_count
+        self.net.ori_latent_mean = ori_latent_mean
+
+        cond_latent_mean = total_cond_mean / batch_count
+        self.net.cond_latent_mean = cond_latent_mean
+
+        print(f"start calculating latent std")
+        batch_count = 0
+        for train_batch in tqdm(train_loader, total=len(train_loader), smoothing=0.01):
+            if batch_count >= max_batch_num:
+                break
+            batch_count += 1
+            total_ori_var, total_cond_var = calc_var(train_batch,
+                                                     ori_latent_mean=ori_latent_mean,
+                                                     cond_latent_mean=cond_latent_mean,
+                                                     total_ori_var=total_ori_var,
+                                                     total_cond_var=total_cond_var)
+            # break
+
+        ori_latent_var = total_ori_var / batch_count
+        cond_latent_var = total_cond_var / batch_count
+
+        self.net.ori_latent_std = torch.sqrt(ori_latent_var)
+        self.net.cond_latent_std = torch.sqrt(cond_latent_var)
+        print(self.net.ori_latent_mean)
+        print(self.net.ori_latent_std)
+        print(self.net.cond_latent_mean)
+        print(self.net.cond_latent_std)
 
     def loss_fn(self, net, batch, epoch, step, opt_idx=0, stage='train', write=True):
         (x, x_name), (x_cond, x_cond_name) = batch
@@ -139,8 +246,8 @@ class BBDMRunner(DiffusionBaseRunner):
             x_cond = x_cond.to(self.config.training.device[0])
 
             for j in range(sample_num):
-                # sample = net.sample(x_cond, clip_denoised=False)
-                sample = net.sample_vqgan(x)
+                sample = net.sample(x_cond, clip_denoised=False)
+                # sample = net.sample_vqgan(x)
                 for i in range(batch_size):
                     condition = x_cond[i].detach().clone()
                     gt = x[i]

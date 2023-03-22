@@ -1,4 +1,4 @@
-# Latent Brownian Bridge Diffusion Model Template(Latent Space)
+# Brownian Bridge Diffusion Model Template(Pixel Space)
 runner: "BBDMRunner"
 training:
   n_epochs: 100
@@ -7,14 +7,14 @@ training:
   validation_interval: 2
 
 testing:
-  clip_denoised: False
+  clip_denoised: True
   sample_num: 5
 
 data:
-  dataset_name: 'CelebAMaskHQ'
+  dataset_name: 'dataset_name'
   dataset_type: 'custom_aligned'
   dataset_config:
-    dataset_path: '/media/x/disk/BBDM/datasets/CelebAMaskHQ'
+    dataset_path: 'dataset_path'
     image_size: 256
     channels: 3
     to_normal: True
@@ -30,8 +30,8 @@ data:
     # shuffle: False
 
 model:
-  model_name: "LBBDM-f16" # part of result path
-  model_type: "LBBDM" # specify a module
+  model_name: "BrownianBridge" # part of result path
+  model_type: "BBDM" # specify a module
   # model_load_path:  # model checkpoint path
   # optim_sche_load_path:  # optimizer scheduler checkpoint path
 
@@ -42,35 +42,9 @@ model:
     start_ema_step: 30000
 
   CondStageParams:
-    n_stages: 4
+    n_stages: 2
     in_channels: 3
-    out_channels: 4
-
-  VQGAN:
-    params:
-      ckpt_path: 'results/VQGAN/CelebAMaskHQ-f16.ckpt'
-      embed_dim: 8
-      n_embed: 16384
-      ddconfig:
-        double_z: false
-        z_channels: 8
-        resolution: 256
-        in_channels: 3
-        out_ch: 3
-        ch: 128
-        ch_mult: !!python/tuple
-          - 1
-          - 1
-          - 2
-          - 2
-          - 4
-        num_res_blocks: 2
-        attn_resolutions:
-          - 16
-        dropout: 0.0
-
-      lossconfig:
-        target: torch.nn.Identity
+    out_channels: 3
 
   BB:
     optimizer:
@@ -100,15 +74,15 @@ model:
       max_var: 1.0 # maximum variance
 
       UNetParams:
-        image_size: 16
-        in_channels: 16
+        image_size: 64
+        in_channels: 6
         model_channels: 128
-        out_channels: 8
+        out_channels: 3
         num_res_blocks: 2
         attention_resolutions: !!python/tuple
+          - 32
           - 16
           - 8
-          - 4
         channel_mult: !!python/tuple
           - 1
           - 4

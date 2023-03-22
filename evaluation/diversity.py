@@ -12,7 +12,6 @@ def calc_diversity(data_dir, num_samples=5):
     transform = transforms.Compose([transforms.ToTensor()])
 
     total = len(dir_list)
-    # total=2000
     std = 0
     for i in tqdm(range(total), total=total, smoothing=0.01):
         imgs = []
@@ -38,6 +37,3 @@ def calc_diversity(data_dir, num_samples=5):
     std = std / total
     print(data_dir)
     print(f'diversity: {std}')
-
-
-calc_diversity('/home/x/Mine/project/paper_samples/latent-diffusion-main/results/ldm-CelebAMaskHQ-f8/samples')
