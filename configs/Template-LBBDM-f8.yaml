@@ -103,7 +103,7 @@ model:
 
       UNetParams:
         image_size: 32
-        in_channels: 8
+        in_channels: 4
         model_channels: 128
         out_channels: 4
         num_res_blocks: 2
@@ -123,4 +123,4 @@ model:
         resblock_updown: True
         use_spatial_transformer: False
         context_dim:
-        condition_key: "SpatialRescaler" # options {"SpatialRescaler", "first_stage", "nocond"}
+        condition_key: "nocond" # options {"SpatialRescaler", "first_stage", "nocond"}
