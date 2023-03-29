@@ -191,7 +191,7 @@ class BrownianBridgeModel(nn.Module):
             m_nt = extract(self.m_t, n_t, x_t.shape)
             var_t = extract(self.variance_t, t, x_t.shape)
             var_nt = extract(self.variance_t, n_t, x_t.shape)
-            sigma2_t = (var_t - var_nt * (1. - m_t) ** 2 / (1. - m_nt) ** 2) * var_nt / (var_t + 1.e-6)
+            sigma2_t = (var_t - var_nt * (1. - m_t) ** 2 / (1. - m_nt) ** 2) * var_nt / var_t
             sigma_t = torch.sqrt(sigma2_t) * self.eta
 
             noise = torch.randn_like(x_t)
