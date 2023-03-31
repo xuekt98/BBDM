@@ -176,7 +176,8 @@ class BBDMRunner(DiffusionBaseRunner):
         return loss
 
     @torch.no_grad()
-    def sample(self, net, batch, sample_path, stage='train'):
+    def sample(self, net, batch, sample_path, stage='train', task_index=None):
+        task_index = "" if task_index is None else task_index
         sample_path = make_dir(os.path.join(sample_path, f'{stage}_sample'))
         reverse_sample_path = make_dir(os.path.join(sample_path, 'reverse_sample'))
         reverse_one_step_path = make_dir(os.path.join(sample_path, 'reverse_one_step_samples'))
@@ -192,34 +193,34 @@ class BBDMRunner(DiffusionBaseRunner):
 
         grid_size = 4
 
-        samples, one_step_samples = net.sample(x_cond,
-                                               clip_denoised=self.config.testing.clip_denoised,
-                                               sample_mid_step=True)
-        self.save_images(samples, reverse_sample_path, grid_size, save_interval=200,
-                         writer_tag=f'{stage}_sample' if stage != 'test' else None)
-
-        self.save_images(one_step_samples, reverse_one_step_path, grid_size, save_interval=200,
-                         writer_tag=f'{stage}_one_step_sample' if stage != 'test' else None)
-
-        sample = samples[-1]
-        # sample = net.sample(x_cond, clip_denoised=self.config.testing.clip_denoised).to('cpu')
+        # samples, one_step_samples = net.sample(x_cond,
+        #                                        clip_denoised=self.config.testing.clip_denoised,
+        #                                        sample_mid_step=True)
+        # self.save_images(samples, reverse_sample_path, grid_size, save_interval=200,
+        #                  writer_tag=f'{stage}_sample' if stage != 'test' else None)
+        #
+        # self.save_images(one_step_samples, reverse_one_step_path, grid_size, save_interval=200,
+        #                  writer_tag=f'{stage}_one_step_sample' if stage != 'test' else None)
+        #
+        # sample = samples[-1]
+        sample = net.sample(x_cond, clip_denoised=self.config.testing.clip_denoised).to('cpu')
         image_grid = get_image_grid(sample, grid_size, to_normal=self.config.data.dataset_config.to_normal)
         im = Image.fromarray(image_grid)
-        im.save(os.path.join(sample_path, 'skip_sample.png'))
+        im.save(os.path.join(sample_path, f'skip_sample{task_index}.png'))
         if stage != 'test':
-            self.writer.add_image(f'{stage}_skip_sample', image_grid, self.global_step, dataformats='HWC')
+            self.writer.add_image(f'{stage}/{stage}_skip_sample{task_index}', image_grid, self.global_step, dataformats='HWC')
 
         image_grid = get_image_grid(x_cond.to('cpu'), grid_size, to_normal=self.config.data.dataset_config.to_normal)
         im = Image.fromarray(image_grid)
-        im.save(os.path.join(sample_path, 'condition.png'))
+        im.save(os.path.join(sample_path, f'condition{task_index}.png'))
         if stage != 'test':
-            self.writer.add_image(f'{stage}_condition', image_grid, self.global_step, dataformats='HWC')
+            self.writer.add_image(f'{stage}/{stage}_condition{task_index}', image_grid, self.global_step, dataformats='HWC')
 
         image_grid = get_image_grid(x.to('cpu'), grid_size, to_normal=self.config.data.dataset_config.to_normal)
         im = Image.fromarray(image_grid)
-        im.save(os.path.join(sample_path, 'ground_truth.png'))
+        im.save(os.path.join(sample_path, f'ground_truth{task_index}.png'))
         if stage != 'test':
-            self.writer.add_image(f'{stage}_ground_truth', image_grid, self.global_step, dataformats='HWC')
+            self.writer.add_image(f'{stage}/{stage}_ground_truth{task_index}', image_grid, self.global_step, dataformats='HWC')
 
         # inversion_samples, inversion_one_step_samples = net.inversion_sample(x,
         #                                                                      clip_denoised=self.config.testing.clip_denoised,

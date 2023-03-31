@@ -3,20 +3,21 @@ runner: "BBDMRunner"
 task_name: "MultiTask"
 training:
   n_epochs: 100
-  n_steps: 200000
+  n_steps: 1000000
   save_interval: 10000
   sample_interval: 5000
   validation_interval: 10000
   reload_data_interval: 5000
+  accumulate_grad_batches: 4
 
 testing:
   clip_denoised: False
   sample_num: 5
 
 data:
-  dataset_type_list: ['custom_aligned']
-  dataset_root_path: 'dataset_root_path'
-  dataset_name_list: [ ]
+  dataset_type_list: ['custom_aligned', 'custom_aligned', 'custom_aligned', 'custom_aligned']
+  dataset_root_path: '/media/x/disk/BBDM/datasets/'
+  dataset_name_list: ['CelebAMaskHQ', 'edges2shoes', 'edges2handbags', 'faces2comics']
   dataset_config:
     # dataset_path: 'dataset_path'
     image_size: 256
@@ -24,10 +25,10 @@ data:
     to_normal: True
     flip: False
   train:
-    batch_size: 8
+    batch_size: 16
     shuffle: True
   val:
-    batch_size: 8
+    batch_size: 16
     shuffle: True
   test:
     batch_size: 8
@@ -55,7 +56,7 @@ model:
 
   VQGAN:
     params:
-      ckpt_path: 'results/VQGAN/CelebAMaskHQ-f4.ckpt'
+      ckpt_path: 'results/VQGAN-new/vq-ldm-f4.ckpt'
       embed_dim: 3
       n_embed: 8192
       ddconfig:

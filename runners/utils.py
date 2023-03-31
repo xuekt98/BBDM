@@ -64,6 +64,24 @@ def get_dataset(data_config):
     return train_dataset, val_dataset, test_dataset
 
 
+def get_dataset_list(data_config):
+    train_dataset_list, val_dataset_list, test_dataset_list = [], [], []
+    task_num = len(data_config.dataset_name_list)
+    for i in range(task_num):
+        data_config.dataset_config.dataset_path = os.path.join(data_config.dataset_root_path,
+                                                               data_config.dataset_name_list[i])
+        train_dataset = Registers.datasets[data_config.dataset_type_list[i]](data_config.dataset_config,
+                                                                             stage='train')
+        val_dataset = Registers.datasets[data_config.dataset_type_list[i]](data_config.dataset_config,
+                                                                           stage='val')
+        test_dataset = Registers.datasets[data_config.dataset_type_list[i]](data_config.dataset_config,
+                                                                            stage='test')
+        train_dataset_list.append(train_dataset)
+        val_dataset_list.append(val_dataset)
+        test_dataset_list.append(test_dataset)
+    return train_dataset_list, val_dataset_list, test_dataset_list
+
+
 @torch.no_grad()
 def save_single_image(image, save_path, file_name, to_normal=True):
     image = image.detach().clone()
