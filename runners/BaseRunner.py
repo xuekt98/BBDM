@@ -359,7 +359,7 @@ class BaseRunner(ABC):
             f"start training {self.config.model.model_name} on {self.config.data.dataset_name}, {len(train_loader)} iters per epoch")
 
         try:
-            # accumulate_grad_batch_count = 0
+            accumulate_grad_batches = self.config.training.accumulate_grad_batches
             for epoch in range(start_epoch, self.config.training.n_epochs):
                 if self.global_step > self.config.training.n_steps:
                     break
@@ -384,15 +384,16 @@ class BaseRunner(ABC):
                                             step=self.global_step,
                                             opt_idx=i,
                                             stage='train')
-                        self.optimizer[i].zero_grad()
+
                         loss.backward()
-                        self.optimizer[i].step()
-
+                        if self.global_step % accumulate_grad_batches == 0:
+                            self.optimizer[i].step()
+                            self.optimizer[i].zero_grad()
+                            if self.scheduler is not None:
+                                self.scheduler[i].step(loss)
                         losses.append(loss.detach().mean())
-                        if self.scheduler is not None:
-                            self.scheduler[i].step(loss)
 
-                    if self.use_ema and self.global_step % self.update_ema_interval == 0:
+                    if self.use_ema and self.global_step % (self.update_ema_interval*accumulate_grad_batches) == 0:
                         self.step_ema()
 
                     if len(self.optimizer) > 1:
@@ -460,26 +461,22 @@ class BaseRunner(ABC):
                                 temp += 1
                             torch.save(model_states,
                                        os.path.join(self.config.result.ckpt_path,
-                                                    f'latest_model_{epoch + 1}.pth'),
-                                       _use_new_zipfile_serialization=False)
+                                                    f'latest_model_{epoch + 1}.pth'))
                             torch.save(optimizer_scheduler_states,
                                        os.path.join(self.config.result.ckpt_path,
-                                                    f'latest_optim_sche_{epoch + 1}.pth'),
-                                       _use_new_zipfile_serialization=False)
+                                                    f'latest_optim_sche_{epoch + 1}.pth'))
                             torch.save(model_states,
                                        os.path.join(self.config.result.ckpt_path,
-                                                    f'last_model.pth'),
-                                       _use_new_zipfile_serialization=False)
+                                                    f'last_model.pth'))
                             torch.save(optimizer_scheduler_states,
                                        os.path.join(self.config.result.ckpt_path,
-                                                    f'last_optim_sche.pth'),
-                                       _use_new_zipfile_serialization=False)
+                                                    f'last_optim_sche.pth'))
 
                             # save top_k checkpoints
                             model_ckpt_name = os.path.join(self.config.result.ckpt_path,
-                                                           f'model_checkpoint_{average_loss:.2f}_epoch={epoch + 1}.pth')
+                                                           f'top_model_epoch={epoch + 1}.pth')
                             optim_sche_ckpt_name = os.path.join(self.config.result.ckpt_path,
-                                                                f'optim_sche_checkpoint_{average_loss:.2f}_epoch={epoch + 1}.pth')
+                                                                f'top_optim_sche_epoch={epoch + 1}.pth')
 
                             if self.config.args.save_top:
                                 top_key = 'top'
@@ -508,12 +505,8 @@ class BaseRunner(ABC):
                                                                           'model_ckpt_name': model_ckpt_name,
                                                                           'optim_sche_ckpt_name': optim_sche_ckpt_name}
 
-                                        torch.save(model_states,
-                                                   model_ckpt_name,
-                                                   _use_new_zipfile_serialization=False)
-                                        torch.save(optimizer_scheduler_states,
-                                                   optim_sche_ckpt_name,
-                                                   _use_new_zipfile_serialization=False)
+                                        torch.save(model_states, model_ckpt_name) #_use_new_zipfile_serialization=False)
+                                        torch.save(optimizer_scheduler_states, optim_sche_ckpt_name) #_use_new_zipfile_serialization=False)
 
         except BaseException as e:
             if not self.config.training.use_DDP or (self.config.training.use_DDP and self.config.training.local_rank) == 0:

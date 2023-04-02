@@ -2,9 +2,11 @@
 runner: "BBDMRunner"
 training:
   n_epochs: 100
+  n_steps: 200000
   save_interval: 2
   sample_interval: 2
   validation_interval: 2
+  accumulate_grad_batches: 4
 
 testing:
   clip_denoised: False
@@ -18,7 +20,7 @@ data:
     image_size: 256
     channels: 3
     to_normal: True
-    flip: False
+    flip: True
   train:
     batch_size: 8
     shuffle: True
