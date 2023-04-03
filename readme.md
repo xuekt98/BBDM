@@ -1,6 +1,8 @@
 # Brownian Bridge Diffusion Models
 ***
 #### [BBDM: Image-to-image Translation with Brownian Bridge Diffusion Models](https://arxiv.org/abs/2205.07680)
+**Bo Li, Kai-Tao Xue, Bin Liu, Yu-Kun Lai**
+
 ![img](resources/BBDM_architecture.png)
 
 ## Requirements
@@ -81,3 +83,13 @@ Our code is implemented based on Latent Diffusion Model and VQGAN
 
 [Latent Diffusion Models](https://github.com/CompVis/latent-diffusion#bibtex)  
 [VQGAN](https://github.com/CompVis/taming-transformers)
+
+## Citation
+```
+@article{li2022vqbb,
+  title={VQBB: Image-to-image Translation with Vector Quantized Brownian Bridge},
+  author={Li, Bo and Xue, Kaitao and Liu, Bin and Lai, Yu-Kun},
+  journal={arXiv preprint arXiv:2205.07680},
+  year={2022}
+}
+```
