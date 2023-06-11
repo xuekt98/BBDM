@@ -127,8 +127,8 @@ class BBDMRunner(DiffusionBaseRunner):
         print(f"start calculating latent mean")
         batch_count = 0
         for train_batch in tqdm(train_loader, total=len(train_loader), smoothing=0.01):
-            if batch_count >= max_batch_num:
-                break
+            # if batch_count >= max_batch_num:
+            #     break
             batch_count += 1
             total_ori_mean, total_cond_mean = calc_mean(train_batch, total_ori_mean, total_cond_mean)
 
@@ -141,8 +141,8 @@ class BBDMRunner(DiffusionBaseRunner):
         print(f"start calculating latent std")
         batch_count = 0
         for train_batch in tqdm(train_loader, total=len(train_loader), smoothing=0.01):
-            if batch_count >= max_batch_num:
-                break
+            # if batch_count >= max_batch_num:
+            #     break
             batch_count += 1
             total_ori_var, total_cond_var = calc_var(train_batch,
                                                      ori_latent_mean=ori_latent_mean,
@@ -180,8 +180,6 @@ class BBDMRunner(DiffusionBaseRunner):
         sample_path = make_dir(os.path.join(sample_path, f'{stage}_sample'))
         reverse_sample_path = make_dir(os.path.join(sample_path, 'reverse_sample'))
         reverse_one_step_path = make_dir(os.path.join(sample_path, 'reverse_one_step_samples'))
-        inversion_sample_path = make_dir(os.path.join(sample_path, f'inversion_sample'))
-        inversion_one_step_path = make_dir(os.path.join(sample_path, 'inversion_one_step_samples'))
 
         (x, x_name), (x_cond, x_cond_name) = batch
 
@@ -220,15 +218,6 @@ class BBDMRunner(DiffusionBaseRunner):
         im.save(os.path.join(sample_path, 'ground_truth.png'))
         if stage != 'test':
             self.writer.add_image(f'{stage}_ground_truth', image_grid, self.global_step, dataformats='HWC')
-
-        # inversion_samples, inversion_one_step_samples = net.inversion_sample(x,
-        #                                                                      clip_denoised=self.config.testing.clip_denoised,
-        #                                                                      sample_mid_step=True)
-        # self.save_images(inversion_samples, inversion_sample_path, grid_size, save_interval=200,
-        #                  writer_tag=f'{stage}_inversion_sample' if stage != 'test' else None)
-        #
-        # self.save_images(inversion_one_step_samples, inversion_one_step_path, grid_size, save_interval=200, head_threshold=990,
-        #                  tail_threshold=10, writer_tag=f'{stage}_inversion_one_step_sample' if stage != 'test' else None)
 
     @torch.no_grad()
     def sample_to_eval(self, net, test_loader, sample_path):

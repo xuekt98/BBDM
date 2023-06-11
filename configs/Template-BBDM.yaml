@@ -32,6 +32,9 @@ data:
 model:
   model_name: "BrownianBridge" # part of result path
   model_type: "BBDM" # specify a module
+  latent_before_quant_conv: False
+  normalize_latent: False
+  only_load_latent_mean_std: False
   # model_load_path:  # model checkpoint path
   # optim_sche_load_path:  # optimizer scheduler checkpoint path
 

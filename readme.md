@@ -1,6 +1,8 @@
 # Brownian Bridge Diffusion Models
 ***
 #### [BBDM: Image-to-image Translation with Brownian Bridge Diffusion Models](https://arxiv.org/abs/2205.07680)
+https://arxiv.org/abs/2205.07680
+
 **Bo Li, Kai-Tao Xue, Bin Liu, Yu-Kun Lai**
 
 ![img](resources/BBDM_architecture.png)
@@ -76,7 +78,13 @@ sh shell/your_shell.sh
 ```
 
 ## Pretrained Models
-Coming soon...
+For simplicity, we re-trained all of the models based on the same VQGAN model from LDM.
+
+The pre-trained VQGAN models provided by LDM can be directly used for all tasks.  
+https://github.com/CompVis/latent-diffusion#bibtex
+
+All of our models can be found here.
+https://pan.baidu.com/s/1xmuAHrBt9rhj7vMu5HIhvA?pwd=hubb
 
 ## Acknowledgement
 Our code is implemented based on Latent Diffusion Model and VQGAN

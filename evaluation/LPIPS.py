@@ -29,6 +29,7 @@ def calc_LPIPS(data_dir, gt_dir, num_samples=1):
     avg_lpips_distance = total_lpips_distance / (total * num_samples)
     print(data_dir)
     print(f'lpips_distance: {avg_lpips_distance}')
+    return avg_lpips_distance
 
 
 # calc_LPIPS(data_dir="/media/x/disk/BBDM/results/evaluation_temp_dir/CelebAMaskHQ/cyclegan",

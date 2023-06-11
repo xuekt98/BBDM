@@ -46,9 +46,9 @@ class BrownianBridgeModel(nn.Module):
             m_min, m_max = 0.001, 0.999
             m_t = np.linspace(m_min, m_max, T)
         elif self.mt_type == "sin":
-            m_t = np.arange(T) / T
-            m_t[0] = 0.0005
-            m_t = 0.5 * np.sin(np.pi * (m_t - 0.5)) + 0.5
+            m_t = 1.0075 ** np.linspace(0, T, T)
+            m_t = m_t / m_t[-1]
+            m_t[-1] = 0.999
         else:
             raise NotImplementedError
         m_tminus = np.append(0, m_t[:-1])
@@ -69,7 +69,7 @@ class BrownianBridgeModel(nn.Module):
         if self.skip_sample:
             if self.sample_type == 'linear':
                 midsteps = torch.arange(self.num_timesteps - 1, 1,
-                                        step=-((self.num_timesteps - 1) // (self.sample_step - 2)), dtype=torch.long)
+                                        step=-((self.num_timesteps - 1) / (self.sample_step - 2))).long()
                 self.steps = torch.cat((midsteps, torch.Tensor([1, 0]).long()), dim=0)
             elif self.sample_type == 'cosine':
                 steps = np.linspace(start=0, stop=self.num_timesteps, num=self.sample_step + 1)
@@ -223,97 +223,3 @@ class BrownianBridgeModel(nn.Module):
     @torch.no_grad()
     def sample(self, y, context=None, clip_denoised=True, sample_mid_step=False):
         return self.p_sample_loop(y, context, clip_denoised, sample_mid_step)
-
-    def predict_y0_from_objective(self, x_t, x0, t, objective_recon):
-        if self.objective == 'noise':
-            m_t = extract(self.m_t, t, x_t.shape)
-            var_t = extract(self.variance_t, t, x_t.shape)
-            sigma_t = torch.sqrt(var_t)
-            y0_recon = (x_t - (1. - m_t) * x0 - sigma_t * objective_recon) / m_t
-        elif self.objective == 'ysubx':
-            y0_recon = x0 + objective_recon
-        else:
-            raise NotImplementedError
-        return y0_recon
-
-    @torch.no_grad()
-    def inversion_sample_step(self, x_t, x0, context, i, clip_denoised=False):
-        b, *_, device = *x_t.shape, x_t.device
-        if i == self.num_timesteps-1:
-            t = torch.full((x_t.shape[0],), i, device=x_t.device, dtype=torch.long)
-            objective_recon = self.denoise_fn(x_t, timesteps=t, context=context)
-            y0_recon = self.predict_y0_from_objective(x_t, x0, t, objective_recon=objective_recon)
-            if clip_denoised:
-                y0_recon.clamp_(-1., 1.)
-            return y0_recon, y0_recon
-        else:
-            t = torch.full((x_t.shape[0],), i, device=x_t.device, dtype=torch.long)
-            n_t = torch.full((x_t.shape[0],), i+1, device=x_t.device, dtype=torch.long)
-
-            objective_recon = self.denoise_fn(x_t, timesteps=t, context=context)
-            y0_recon = self.predict_y0_from_objective(x_t, x0, t, objective_recon=objective_recon)
-            if clip_denoised:
-                y0_recon.clamp_(-1., 1.)
-
-            # 方案2 失败
-            # m_t = extract(self.m_t, t, x_t.shape)
-            # m_nt = extract(self.m_t, n_t, x_t.shape)
-            # var_t = extract(self.variance_t, t, x_t.shape)
-            # var_nt = extract(self.variance_t, n_t, x_t.shape)
-            # sigma2_t = var_nt - var_t * (m_nt / m_t)**2
-            # sigma_t = torch.sqrt(-sigma2_t)
-            # x_tplus = x_t * m_nt / m_t + ((1. - m_nt) - (1. - m_t) * m_nt / m_t) * x0 + sigma_t * objective_recon
-            # # pdb.set_trace()
-            # return x_tplus, y0_recon
-
-            # 方案1 有一定效果
-            # m_t = extract(self.m_t, t, x_t.shape)
-            # m_nt = extract(self.m_t, n_t, x_t.shape)
-            # var_t = extract(self.variance_t, t, x_t.shape)
-            # var_nt = extract(self.variance_t, n_t, x_t.shape)
-            # sigma2_t = (var_nt - var_t * ((1. - m_nt)/(1. - m_t))**2) * var_nt
-            # sigma_t = torch.sqrt(sigma2_t) * self.eta
-            #
-            # noise = torch.randn_like(x_t)
-            # x_tplus_mean = (1. - m_nt) / (1. - m_t) * x_t + (m_nt - m_t * (1. - m_nt) / (1. - m_t)) * y0_recon
-            #
-            # return x_tplus_mean + sigma_t * noise, y0_recon
-
-            m_t = extract(self.m_t, t, x_t.shape)
-            m_nt = extract(self.m_t, n_t, x_t.shape)
-            var_t = extract(self.variance_t, t, x_t.shape)
-            var_nt = extract(self.variance_t, n_t, x_t.shape)
-            sigma2_t = var_nt
-            sigma_t = torch.sqrt(sigma2_t) * self.eta
-
-            noise = torch.randn_like(x_t)
-            x_tplus_mean = (1. - m_nt) * x0 + m_nt * y0_recon + torch.sqrt(var_nt) * objective_recon
-
-            return x_tplus_mean, y0_recon
-
-    @torch.no_grad()
-    def inversion_sample_loop(self, x0, context=None, clip_denoised=True, sample_mid_step=False):
-        if sample_mid_step:
-            imgs, one_step_imgs = [x0], []
-            for i in tqdm(range(self.num_timesteps), desc=f'inversion sampling loop time step', total=self.num_timesteps):
-                img, x0_recon = self.inversion_sample_step(x_t=imgs[-1],
-                                                           x0=x0,
-                                                           context=context,
-                                                           i=i,
-                                                           clip_denoised=clip_denoised)
-                imgs.append(img)
-                one_step_imgs.append(x0_recon)
-            return imgs, one_step_imgs
-        else:
-            img = x0
-            for i in tqdm(range(self.num_timesteps), desc=f'inversion sampling loop time step', total=self.num_timesteps):
-                img, _ = self.inversion_sample_step(x_t=img,
-                                                    x0=x0,
-                                                    context=context,
-                                                    i=i,
-                                                    clip_denoised=clip_denoised)
-            return img
-
-    @torch.no_grad()
-    def inversion_sample(self, x0, context=None, clip_denoised=True, sample_mid_step=False):
-        return self.inversion_sample_loop(x0, context, clip_denoised, sample_mid_step)
