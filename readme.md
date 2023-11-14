@@ -65,11 +65,22 @@ Don't forget to specify your VQGAN checkpoint path and dataset path.
 ### Specity your training and tesing shell
 Specity your shell file based on our templates in <font color=violet><b>configs/Template-shell.sh</b></font>
 
+If you wish to train from the beginning
+```commandline
+python3 main.py --config configs/Template_LBBDM_f4.yaml --train --sample_at_start --save_top --gpu_ids 0 
+```
+
 If you wish to continue training, specify the model checkpoint path and optimizer checkpoint path in the train part.
 ```commandline
 python3 main.py --config configs/Template_LBBDM_f4.yaml --train --sample_at_start --save_top --gpu_ids 0 
 --resume_model path/to/model_ckpt --resume_optim path/to/optim_ckpt
 ```
+
+If you wish to sample the whole test dataset to evaluate metrics
+```commandline
+python3 main.py --config configs/Template_LBBDM_f4.yaml --sample_to_eval --gpu_ids 0 --resume_model path/to/model_ckpt
+```
+
 Note that optimizer checkpoint is not needed in test and specifying checkpoint path in commandline has higher priority than specifying in configuration file.
 
 ### Run
