@@ -575,7 +575,7 @@ class BaseRunner(ABC):
                 self.sample_to_eval(self.net, test_loader, sample_path)
         else:
             test_iter = iter(test_loader)
-            for i in tqdm(range(1), initial=0, dynamic_ncols=True, smoothing=0.01):
+            for i in tqdm(range(len(test_loader)), initial=0, dynamic_ncols=True, smoothing=0.01):
                 test_batch = next(test_iter)
                 sample_path = os.path.join(self.config.result.sample_path, str(i))
                 if self.config.training.use_DDP:
