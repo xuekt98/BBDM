@@ -105,10 +105,11 @@ Our code is implemented based on Latent Diffusion Model and VQGAN
 
 ## Citation
 ```
-@article{li2022vqbb,
-  title={VQBB: Image-to-image Translation with Vector Quantized Brownian Bridge},
+@inproceedings{li2023bbdm,
+  title={BBDM: Image-to-image translation with Brownian bridge diffusion models},
   author={Li, Bo and Xue, Kaitao and Liu, Bin and Lai, Yu-Kun},
-  journal={arXiv preprint arXiv:2205.07680},
-  year={2022}
+  booktitle={Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition},
+  pages={1952--1961},
+  year={2023}
 }
 ```
