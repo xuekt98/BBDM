@@ -85,6 +85,11 @@ python3 main.py --config configs/Template_LBBDM_f4.yaml --sample_to_eval --gpu_i
 
 Note that optimizer checkpoint is not needed in test and specifying checkpoint path in commandline has higher priority than specifying in configuration file.
 
+For distributed training, just modify the configuration of **--gpu_ids** with your specified gpus. 
+```commandline
+python3 main.py --config configs/Template_LBBDM_f4.yaml --sample_to_eval --gpu_ids 0,1,2,3 --resume_model path/to/model_ckpt
+```
+
 ### Run
 ```commandline
 sh shell/your_shell.sh
