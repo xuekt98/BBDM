@@ -8,6 +8,7 @@ import os
 import traceback
 
 import torch
+import torch.distributed as dist
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -15,8 +16,8 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from abc import ABC, abstractmethod
 from tqdm.autonotebook import tqdm
 
-from evaluation.FID import calc_FID
-from evaluation.LPIPS import calc_LPIPS
+# from evaluation.FID import calc_FID
+# from evaluation.LPIPS import calc_LPIPS
 from runners.base.EMA import EMA
 from runners.utils import make_save_dirs, make_dir, get_dataset, remove_file
 
@@ -27,7 +28,7 @@ class BaseRunner(ABC):
         self.optimizer = None  # optimizer
         self.scheduler = None  # scheduler
         self.config = config  # config from configuration file
-
+        self.is_main_process = True if (not self.config.training.use_DDP) or self.config.training.local_rank == 0 else False
         # set training params
         self.global_epoch = 0  # global epoch
         if config.args.sample_at_start:
@@ -40,6 +41,7 @@ class BaseRunner(ABC):
 
         # set log and save destination
         self.config.result = argparse.Namespace()
+        self.config.result.result_path, \
         self.config.result.image_path, \
         self.config.result.ckpt_path, \
         self.config.result.log_path, \
@@ -47,6 +49,8 @@ class BaseRunner(ABC):
         self.config.result.sample_to_eval_path = make_save_dirs(self.config.args,
                                                                 prefix=self.config.data.dataset_name,
                                                                 suffix=self.config.model.model_name)
+
+        self.logger("save training results to " + self.config.result.result_path)
 
         self.save_config()  # save configuration file
         self.writer = SummaryWriter(self.config.result.log_path)  # initialize SummaryWriter
@@ -74,12 +78,18 @@ class BaseRunner(ABC):
             self.net = self.net.to(self.config.training.device[0])
         # self.ema.reset_device(self.net)
 
+    # print msg
+    def logger(self, msg, **kwargs):
+        if self.is_main_process:
+            print(msg, **kwargs)
+
     # save configuration file
     def save_config(self):
-        save_path = os.path.join(self.config.result.ckpt_path, 'config.yaml')
-        save_config = self.config
-        with open(save_path, 'w') as f:
-            yaml.dump(save_config, f)
+        if self.is_main_process:
+            save_path = os.path.join(self.config.result.ckpt_path, 'config.yaml')
+            save_config = self.config
+            with open(save_path, 'w') as f:
+                yaml.dump(save_config, f)
 
     def initialize_model_optimizer_scheduler(self, config, is_test=False):
         """
@@ -101,7 +111,7 @@ class BaseRunner(ABC):
     def load_model_from_checkpoint(self):
         model_states = None
         if self.config.model.__contains__('model_load_path') and self.config.model.model_load_path is not None:
-            print(f"load model {self.config.model.model_name} from {self.config.model.model_load_path}")
+            self.logger(f"load model {self.config.model.model_name} from {self.config.model.model_load_path}")
             model_states = torch.load(self.config.model.model_load_path, map_location='cpu')
 
             self.global_epoch = model_states['epoch']
@@ -206,7 +216,7 @@ class BaseRunner(ABC):
         self.apply_ema()
         self.net.eval()
 
-        pbar = tqdm(val_loader, total=len(val_loader), smoothing=0.01)
+        pbar = tqdm(val_loader, total=len(val_loader), smoothing=0.01, disable=not self.is_main_process)
         step = 0
         loss_sum = 0.
         dloss_sum = 0.
@@ -230,10 +240,11 @@ class BaseRunner(ABC):
                 dloss_sum += loss
             step += 1
         average_loss = loss_sum / step
-        self.writer.add_scalar(f'val_epoch/loss', average_loss, epoch)
-        if len(self.optimizer) > 1:
-            average_dloss = dloss_sum / step
-            self.writer.add_scalar(f'val_dloss_epoch/loss', average_dloss, epoch)
+        if self.is_main_process:
+            self.writer.add_scalar(f'val_epoch/loss', average_loss, epoch)
+            if len(self.optimizer) > 1:
+                average_dloss = dloss_sum / step
+                self.writer.add_scalar(f'val_dloss_epoch/loss', average_dloss, epoch)
         self.restore_ema()
         return average_loss
 
@@ -325,7 +336,7 @@ class BaseRunner(ABC):
         pass
 
     def train(self):
-        print(self.__class__.__name__)
+        self.logger(self.__class__.__name__)
 
         train_dataset, val_dataset, test_dataset = get_dataset(self.config.data)
         train_sampler = None
@@ -369,8 +380,7 @@ class BaseRunner(ABC):
 
         epoch_length = len(train_loader)
         start_epoch = self.global_epoch
-        print(
-            f"start training {self.config.model.model_name} on {self.config.data.dataset_name}, {len(train_loader)} iters per epoch")
+        self.logger(f"start training {self.config.model.model_name} on {self.config.data.dataset_name}, {len(train_loader)} iters per epoch")
 
         try:
             accumulate_grad_batches = self.config.training.accumulate_grad_batches
@@ -382,7 +392,7 @@ class BaseRunner(ABC):
                     train_sampler.set_epoch(epoch)
                     val_sampler.set_epoch(epoch)
 
-                pbar = tqdm(train_loader, total=len(train_loader), smoothing=0.01)
+                pbar = tqdm(train_loader, total=len(train_loader), smoothing=0.01, disable=not self.is_main_process)
                 self.global_epoch = epoch
                 start_time = time.time()
                 for train_batch in pbar:
@@ -405,6 +415,8 @@ class BaseRunner(ABC):
                             self.optimizer[i].zero_grad()
                             if self.scheduler is not None:
                                 self.scheduler[i].step(loss)
+                        if self.config.training.use_DDP:
+                            dist.reduce(loss, dst=0, op=dist.ReduceOp.SUM)
                         losses.append(loss.detach().mean())
 
                     if self.use_ema and self.global_step % (self.update_ema_interval*accumulate_grad_batches) == 0:
@@ -434,35 +446,32 @@ class BaseRunner(ABC):
                             # val_batch = next(iter(val_loader))
                             # self.validation_step(val_batch=val_batch, epoch=epoch, step=self.global_step)
 
-                            if not self.config.training.use_DDP or \
-                                    (self.config.training.use_DDP and self.config.training.local_rank) == 0:
+                            if self.is_main_process:
                                 val_batch = next(iter(val_loader))
                                 self.sample_step(val_batch=val_batch, train_batch=train_batch)
                                 torch.cuda.empty_cache()
 
                 end_time = time.time()
                 elapsed_rounded = int(round((end_time-start_time)))
-                print("training time: " + str(datetime.timedelta(seconds=elapsed_rounded)))
+                self.logger("training time: " + str(datetime.timedelta(seconds=elapsed_rounded)))
 
                 # validation
                 if (epoch + 1) % self.config.training.validation_interval == 0 or (
                         epoch + 1) == self.config.training.n_epochs:
-                    if not self.config.training.use_DDP or \
-                            (self.config.training.use_DDP and self.config.training.local_rank) == 0:
-                        with torch.no_grad():
-                            print("validating epoch...")
-                            average_loss = self.validation_epoch(val_loader, epoch)
-                            torch.cuda.empty_cache()
-                            print("validating epoch success")
+                    # if self.is_main_process == 0:
+                    with torch.no_grad():
+                        self.logger("validating epoch...")
+                        average_loss = self.validation_epoch(val_loader, epoch)
+                        torch.cuda.empty_cache()
+                        self.logger("validating epoch success")
 
                 # save checkpoint
                 if (epoch + 1) % self.config.training.save_interval == 0 or \
                         (epoch + 1) == self.config.training.n_epochs or \
                         self.global_step > self.config.training.n_steps:
-                    if not self.config.training.use_DDP or \
-                            (self.config.training.use_DDP and self.config.training.local_rank) == 0:
+                    if self.is_main_process:
                         with torch.no_grad():
-                            print("saving latest checkpoint...")
+                            self.logger("saving latest checkpoint...")
                             self.on_save_checkpoint(self.net, train_loader, val_loader, epoch, self.global_step)
                             model_states, optimizer_scheduler_states = self.get_checkpoint_states(stage='epoch_end')
 
@@ -523,8 +532,10 @@ class BaseRunner(ABC):
                                                    os.path.join(self.config.result.ckpt_path, model_ckpt_name))
                                         torch.save(optimizer_scheduler_states,
                                                    os.path.join(self.config.result.ckpt_path, optim_sche_ckpt_name))
+                if self.config.training.use_DDP:
+                    dist.barrier()
         except BaseException as e:
-            if not self.config.training.use_DDP or (self.config.training.use_DDP and self.config.training.local_rank) == 0:
+            if self.is_main_process == 0:
                 print("exception save model start....")
                 print(self.__class__.__name__)
                 model_states, optimizer_scheduler_states = self.get_checkpoint_states(stage='exception')

@@ -53,8 +53,8 @@ class BBDMRunner(DiffusionBaseRunner):
             return total_num, trainable_num
 
         total_num, trainable_num = get_parameter_number(net)
-        print("Total Number of parameter: %.2fM" % (total_num / 1e6))
-        print("Trainable Number of parameter: %.2fM" % (trainable_num / 1e6))
+        self.logger("Total Number of parameter: %.2fM" % (total_num / 1e6))
+        self.logger("Trainable Number of parameter: %.2fM" % (trainable_num / 1e6))
 
     def initialize_optimizer_scheduler(self, net, config):
         optimizer = get_optimizer(config.model.BB.optimizer, net.get_parameters())
@@ -124,7 +124,7 @@ class BBDMRunner(DiffusionBaseRunner):
             total_cond_var = x_cond_var if total_cond_var is None else x_cond_var + total_cond_var
             return total_ori_var, total_cond_var
 
-        print(f"start calculating latent mean")
+        self.logger(f"start calculating latent mean")
         batch_count = 0
         for train_batch in tqdm(train_loader, total=len(train_loader), smoothing=0.01):
             # if batch_count >= max_batch_num:
@@ -138,7 +138,7 @@ class BBDMRunner(DiffusionBaseRunner):
         cond_latent_mean = total_cond_mean / batch_count
         self.net.cond_latent_mean = cond_latent_mean
 
-        print(f"start calculating latent std")
+        self.logger(f"start calculating latent std")
         batch_count = 0
         for train_batch in tqdm(train_loader, total=len(train_loader), smoothing=0.01):
             # if batch_count >= max_batch_num:
@@ -156,10 +156,10 @@ class BBDMRunner(DiffusionBaseRunner):
 
         self.net.ori_latent_std = torch.sqrt(ori_latent_var)
         self.net.cond_latent_std = torch.sqrt(cond_latent_var)
-        print(self.net.ori_latent_mean)
-        print(self.net.ori_latent_std)
-        print(self.net.cond_latent_mean)
-        print(self.net.cond_latent_std)
+        self.logger(self.net.ori_latent_mean)
+        self.logger(self.net.ori_latent_std)
+        self.logger(self.net.cond_latent_mean)
+        self.logger(self.net.cond_latent_std)
 
     def loss_fn(self, net, batch, epoch, step, opt_idx=0, stage='train', write=True):
         (x, x_name), (x_cond, x_cond_name) = batch
@@ -167,7 +167,7 @@ class BBDMRunner(DiffusionBaseRunner):
         x_cond = x_cond.to(self.config.training.device[0])
 
         loss, additional_info = net(x, x_cond)
-        if write:
+        if write and self.is_main_process:
             self.writer.add_scalar(f'loss/{stage}', loss, step)
             if additional_info.__contains__('recloss_noise'):
                 self.writer.add_scalar(f'recloss_noise/{stage}', additional_info['recloss_noise'], step)
@@ -180,6 +180,8 @@ class BBDMRunner(DiffusionBaseRunner):
         sample_path = make_dir(os.path.join(sample_path, f'{stage}_sample'))
         reverse_sample_path = make_dir(os.path.join(sample_path, 'reverse_sample'))
         reverse_one_step_path = make_dir(os.path.join(sample_path, 'reverse_one_step_samples'))
+
+        print(sample_path)
 
         (x, x_name), (x_cond, x_cond_name) = batch
 

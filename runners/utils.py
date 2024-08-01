@@ -28,8 +28,8 @@ def make_save_dirs(args, prefix, suffix=None, with_time=False):
     checkpoint_path = make_dir(os.path.join(result_path, "checkpoint"))
     sample_path = make_dir(os.path.join(result_path, "samples"))
     sample_to_eval_path = make_dir(os.path.join(result_path, "sample_to_eval"))
-    print("create output path " + result_path)
-    return image_path, checkpoint_path, log_path, sample_path, sample_to_eval_path
+    # print("create output path " + result_path)
+    return result_path, image_path, checkpoint_path, log_path, sample_path, sample_to_eval_path
 
 
 def weights_init(m):

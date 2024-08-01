@@ -60,7 +60,9 @@ dataset_config:
 
 ## Train and Test
 ### Specify your configuration file
-Modify the configuration file based on our templates in <font color=violet><b>configs/Template-*.yaml</b></font>
+Modify the configuration file based on our templates in <font color=violet><b>configs/Template-*.yaml</b></font>  
+The template of BBDM in pixel space are named <font color=violet><b>Template-BBDM.yaml</b></font> that can be found in **configs/** and <font color=violet><b>Template-LBBDM-f4.yaml Template-LBBDM-f8.yaml Template-LBBDM-f16.yaml</b></font> are templates for latent space BBDM with latent depth of 4/8/16. 
+
 Don't forget to specify your VQGAN checkpoint path and dataset path.
 ### Specity your training and tesing shell
 Specity your shell file based on our templates in <font color=violet><b>configs/Template-shell.sh</b></font>
@@ -93,6 +95,12 @@ For simplicity, we re-trained all of the models based on the same VQGAN model fr
 
 The pre-trained VQGAN models provided by LDM can be directly used for all tasks.  
 https://github.com/CompVis/latent-diffusion#bibtex
+
+The VQGAN checkpoint VQ-4,8,16 we used are listed as follows and they all can be found in the above LDM mainpage:
+
+VQGAN-4: https://ommer-lab.com/files/latent-diffusion/vq-f4.zip  
+VQGAN-8: https://ommer-lab.com/files/latent-diffusion/vq-f8.zip  
+VQGAN-16: https://heibox.uni-heidelberg.de/f/0e42b04e2e904890a9b6/?dl=1
 
 All of our models can be found here.
 https://pan.baidu.com/s/1xmuAHrBt9rhj7vMu5HIhvA?pwd=hubb
